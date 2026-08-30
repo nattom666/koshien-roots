@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- 甲子園2026 出身地マップのアイコン。中学のチームから高校へ向かう弧。 -->
+  <defs>
+    <linearGradient id="arc" x1="96" y1="368" x2="416" y2="150" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#199e70"/>
+      <stop offset=".55" stop-color="#3987e5"/>
+      <stop offset="1" stop-color="#cde2fb"/>
+    </linearGradient>
+    <linearGradient id="bg" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#141c2b"/>
+      <stop offset="1" stop-color="#0b1017"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <path d="M96 368 Q208 128 416 150" fill="none" stroke="url(#arc)" stroke-width="26" stroke-linecap="round"/>
+  <circle cx="96" cy="368" r="34" fill="#199e70" stroke="#0b1017" stroke-width="12"/>
+  <g>
+    <circle cx="416" cy="150" r="44" fill="#f4f7fb" stroke="#0b1017" stroke-width="12"/>
+    <!-- ボールの縫い目 -->
+    <path d="M390 118 Q406 150 390 182 M442 118 Q426 150 442 182"
+          fill="none" stroke="#e34948" stroke-width="7" stroke-linecap="round"/>
+  </g>
+</svg>

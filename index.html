@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>甲子園2026 出身地マップ</title>
+<meta name="description" content="2026年夏の甲子園に出場した49校のベンチ入り980人が、どこの県の出身で、どこの中学野球チームから来たのかを日本地図で見るページ。">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<style>
+:root{
+  --bg:#0d1117; --surface:#161b22; --surface-2:#1c2330; --line:#2b3441;
+  --ink:#f0f3f7; --ink-2:#aeb9c7; --ink-3:#6e7d8f;
+  --accent:#3987e5; --accent-2:#199e70; --warm:#eb6834;
+  /* 逐次配色（青の1色）。暗い地の上なので「多いほど明るい」 */
+  --s0:#141b26; --s1:#184f95; --s2:#256abf; --s3:#3987e5;
+  --s4:#5598e7; --s5:#86b6ef; --s6:#b7d3f6; --s7:#cde2fb;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:var(--bg); color:var(--ink);
+  font:15px/1.7 -apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP",sans-serif;
+  -webkit-font-smoothing:antialiased;
+}
+a{color:var(--accent)}
+.wrap{max-width:1180px;margin:0 auto;padding:0 16px 80px}
+
+/* ── 見出し ───────────────────────────── */
+header{
+  padding:34px 0 22px;
+  background:
+    radial-gradient(900px 320px at 12% -10%, rgba(57,135,229,.20), transparent 60%),
+    radial-gradient(700px 300px at 88% -20%, rgba(25,158,112,.16), transparent 60%);
+  border-bottom:1px solid var(--line); margin-bottom:22px;
+}
+h1{margin:0;font-size:30px;letter-spacing:.02em;font-weight:700}
+h1 small{display:block;font-size:13px;font-weight:400;color:var(--ink-2);letter-spacing:.06em;margin-bottom:8px}
+@media(max-width:520px){h1{font-size:24px}.wrap{padding:0 12px 60px}}
+.lead{margin:12px 0 0;color:var(--ink-2);font-size:14px;max-width:760px}
+.counts{display:flex;gap:22px;margin-top:16px;flex-wrap:wrap}
+.counts div{font-size:12px;color:var(--ink-3);letter-spacing:.08em}
+.counts b{display:block;font-size:24px;color:var(--ink);letter-spacing:0;font-variant-numeric:tabular-nums}
+
+/* ── タブ ─────────────────────────────── */
+nav.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:20px;overflow-x:auto}
+nav.tabs button{
+  background:none;border:0;border-bottom:2px solid transparent;color:var(--ink-3);
+  font:inherit;font-size:14px;padding:10px 14px;cursor:pointer;white-space:nowrap;
+}
+nav.tabs button:hover{color:var(--ink-2)}
+nav.tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--accent)}
+section[hidden]{display:none}
+
+/* ── 操作列 ───────────────────────────── */
+.controls{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
+/* flex と grid の子は既定で縮まない（min-width:auto）。長い日本語がそのまま
+   横スクロールになるので、縮んでよいことを明示する。 */
+.controls>*,.bar>*,.prow>*{min-width:0}
+.seg{display:inline-flex;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:2px}
+.seg button{
+  background:none;border:0;color:var(--ink-2);font:inherit;font-size:13px;
+  padding:6px 13px;border-radius:6px;cursor:pointer;
+}
+.seg button[aria-pressed="true"]{background:var(--accent);color:#fff}
+#player-q{flex:1 1 260px;min-width:200px}
+select,input[type=search]{
+  background:var(--surface);color:var(--ink);border:1px solid var(--line);
+  border-radius:8px;padding:7px 10px;font:inherit;font-size:13px;max-width:100%;
+}
+.hint{color:var(--ink-3);font-size:12px;min-width:0}
+button.ghost{
+  background:var(--surface);border:1px solid var(--line);color:var(--ink-2);
+  border-radius:8px;padding:7px 12px;font:inherit;font-size:13px;cursor:pointer;
+}
+button.ghost:hover{border-color:var(--accent);color:var(--ink)}
+
+/* ── 地図 ─────────────────────────────── */
+.mapgrid{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(260px,1fr);gap:20px}
+@media(max-width:860px){.mapgrid{grid-template-columns:1fr}}
+.mapbox{
+  position:relative;background:var(--surface);border:1px solid var(--line);
+  border-radius:14px;overflow:hidden;
+}
+svg.map{display:block;width:100%;height:auto;touch-action:manipulation}
+svg.map .pref{stroke:#0d1117;stroke-width:1.1;cursor:pointer;transition:fill .18s;vector-effect:non-scaling-stroke}
+svg.map .pref:hover{stroke:var(--ink);stroke-width:1.6}
+svg.map .pref.on{stroke:#fff;stroke-width:2}
+svg.map .flow{fill:none;stroke-linecap:round;vector-effect:non-scaling-stroke}
+svg.map .node{pointer-events:none}
+.legend{display:flex;align-items:center;gap:2px;padding:10px 14px;border-top:1px solid var(--line);flex-wrap:wrap}
+.legend i{flex:none}
+.legend i{width:26px;height:11px;display:inline-block;border-radius:2px}
+.legend span{font-size:11px;color:var(--ink-3);margin-right:8px;font-variant-numeric:tabular-nums}
+.tip{
+  position:absolute;pointer-events:none;background:#0b0f15ee;border:1px solid var(--line);
+  border-radius:8px;padding:7px 10px;font-size:12px;line-height:1.5;white-space:nowrap;
+  opacity:0;transition:opacity .12s;z-index:5;
+}
+.tip b{font-size:13px}
+.side{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px;min-height:200px}
+.side h3{margin:0 0 4px;font-size:16px}
+.side .sub{color:var(--ink-3);font-size:12px;margin-bottom:12px}
+.steps{background:var(--surface-2);border:1px solid var(--line);border-radius:10px;
+  padding:10px 12px;margin-bottom:12px;font-size:12px;color:var(--ink-2);display:grid;gap:3px}
+.steps b{color:var(--ink);font-size:12px}
+.steps span{color:var(--ink-2)}
+.plist{max-height:520px;overflow:auto;margin:0 -6px}
+.prow{
+  display:grid;grid-template-columns:26px 1fr auto;gap:8px;align-items:baseline;
+  padding:7px 6px;border-radius:8px;cursor:pointer;
+}
+.prow:hover{background:var(--surface-2)}
+.prow.on{background:#1d3557}
+.prow .n{color:var(--ink-3);font-size:11px;font-variant-numeric:tabular-nums;text-align:right}
+.prow .m{color:var(--ink-3);font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block}
+.prow em{font-style:normal;color:var(--ink-2);font-size:12px}
+
+/* ── 棒 ───────────────────────────────── */
+.bars{display:grid;gap:3px;align-content:start}
+.bar{display:grid;grid-template-columns:190px 1fr 42px;gap:10px;align-items:center;padding:2px 0;cursor:pointer;border-radius:6px}
+.bar:hover{background:var(--surface-2)}
+.bar.on{background:#1d3557}
+.bar .lb{font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bar .lb small{color:var(--ink-3);font-size:11px;margin-left:6px}
+.bar .tr{background:var(--surface-2);border-radius:4px;height:15px;overflow:hidden}
+.bar .fl{height:100%;border-radius:0 4px 4px 0;background:var(--accent)}
+.bar .vl{text-align:right;font-size:12px;color:var(--ink-2);font-variant-numeric:tabular-nums}
+@media(max-width:640px){.bar{grid-template-columns:130px 1fr 36px}}
+
+/* ── 表 ───────────────────────────────── */
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{text-align:left;padding:7px 9px;border-bottom:1px solid var(--line);vertical-align:top}
+th{position:sticky;top:0;background:var(--bg);color:var(--ink-3);font-weight:500;font-size:11px;
+   letter-spacing:.06em;cursor:pointer;white-space:nowrap;z-index:2}
+th:hover{color:var(--ink)}
+tbody tr{cursor:pointer}
+tbody tr:hover{background:var(--surface-2)}
+td.num{font-variant-numeric:tabular-nums;color:var(--ink-3)}
+.tablebox{max-height:70vh;overflow:auto;border:1px solid var(--line);border-radius:12px}
+.pill{display:inline-block;padding:1px 7px;border-radius:99px;font-size:11px;border:1px solid var(--line);color:var(--ink-2)}
+
+/* ── 選手カード（軌跡） ─────────────────── */
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:14px}
+.card .who{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.card .who b{font-size:19px}
+.leg{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;margin-top:12px;font-size:13px}
+.leg dt{color:var(--ink-3);font-size:12px}
+.leg dd{margin:0}
+.note{color:var(--warm);font-size:12px;margin-top:8px}
+footer{border-top:1px solid var(--line);margin-top:40px;padding-top:18px;color:var(--ink-3);font-size:12px}
+footer p{margin:6px 0}
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <h1><small>第108回全国高等学校野球選手権大会 ／ 2026年8月5日〜22日</small>甲子園2026 出身地マップ</h1>
+    <p class="lead">出場49校のベンチ入り980人が、<b>どこの県で生まれ育ち</b>、<b>どこの中学野球チーム</b>から
+      甲子園にたどり着いたのか。県を押すとその県の選手が出て、選手を押すと中学チームから高校までの道のりが地図に流れる。</p>
+    <div class="counts">
+      <div>出場校<b id="c-school">49</b></div>
+      <div>ベンチ入り<b id="c-player">980</b></div>
+      <div>中学チーム<b id="c-team">—</b></div>
+      <div>中学軟式部から<b id="c-nan">—</b></div>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+<nav class="tabs" role="tablist">
+  <button role="tab" aria-selected="true"  data-tab="map">地図</button>
+  <button role="tab" aria-selected="false" data-tab="team">中学チーム</button>
+  <button role="tab" aria-selected="false" data-tab="school">高校ごと</button>
+  <button role="tab" aria-selected="false" data-tab="list">一覧</button>
+</nav>
+
+<!-- ══ 地図 ══ -->
+<section id="tab-map">
+  <div class="controls">
+    <div class="seg" id="metric">
+      <button aria-pressed="true"  data-v="m">出身県（中学校の所在地）</button>
+      <button aria-pressed="false" data-v="t">中学チームの県</button>
+    </div>
+    <select id="school-filter"><option value="-1">49校すべて</option></select>
+    <input type="search" id="player-q" list="players-dl" placeholder="選手名を入れると道のりが流れる">
+    <datalist id="players-dl"></datalist>
+    <button id="flow-any" class="ghost">ためしに1人</button>
+    <button id="flow-all" class="ghost" hidden>20人の道のりをまとめて見る</button>
+    <button id="flow-clear" class="ghost" hidden>軌跡を消す</button>
+    <span class="hint" id="map-hint"></span>
+  </div>
+  <div class="mapgrid">
+    <div>
+      <div class="mapbox">
+        <svg class="map" id="svg" xmlns="http://www.w3.org/2000/svg"></svg>
+        <div class="tip" id="tip"></div>
+      </div>
+      <div class="legend" id="legend"></div>
+    </div>
+    <aside class="side">
+      <h3 id="side-title">県を押してください</h3>
+      <div class="steps" id="steps">
+        <b>道のりの出しかた</b>
+        <span>① 地図の県か、下の棒を押す</span>
+        <span>② 出てきた<b>選手の行を押す</b>と、中学のチームから高校まで線が流れます</span>
+      </div>
+      <div class="sub" id="side-sub">地図の県を押すと、その県の出身選手が並びます。</div>
+      <div class="plist" id="side-list"></div>
+    </aside>
+  </div>
+</section>
+
+<!-- ══ 中学チーム ══ -->
+<section id="tab-team" hidden>
+  <div class="controls">
+    <div class="seg" id="team-mode">
+      <button aria-pressed="true"  data-v="team">チーム別</button>
+      <button aria-pressed="false" data-v="kind">種別ごと</button>
+      <button aria-pressed="false" data-v="pref">チームの県別</button>
+    </div>
+    <input type="search" id="team-q" placeholder="チーム名で絞る（例：枚方）">
+    <span class="hint">全49校を通した人数。押すとその選手が出ます。</span>
+  </div>
+  <div class="mapgrid">
+    <div class="bars" id="team-bars"></div>
+    <aside class="side">
+      <h3 id="team-title">チームを押してください</h3>
+      <div class="sub" id="team-sub"></div>
+      <div class="plist" id="team-list"></div>
+    </aside>
+  </div>
+</section>
+
+<!-- ══ 高校ごと ══ -->
+<section id="tab-school" hidden>
+  <div class="controls">
+    <select id="school-pick"></select>
+    <div class="seg" id="school-mode">
+      <button aria-pressed="true"  data-v="m">出身県</button>
+      <button aria-pressed="false" data-v="t">中学チームの県</button>
+    </div>
+    <span class="hint">その高校の20人がどこから来ているか。</span>
+  </div>
+  <div class="mapgrid">
+    <div class="bars" id="school-bars"></div>
+    <aside class="side">
+      <h3 id="school-title"></h3>
+      <div class="sub" id="school-sub"></div>
+      <div class="plist" id="school-list"></div>
+    </aside>
+  </div>
+</section>
+
+<!-- ══ 一覧 ══ -->
+<section id="tab-list" hidden>
+  <div class="controls">
+    <input type="search" id="q" placeholder="選手名・中学校・チームで探す">
+    <select id="f-school"><option value="">高校すべて</option></select>
+    <select id="f-pref"><option value="">出身県すべて</option></select>
+    <select id="f-pos"><option value="">守備すべて</option></select>
+    <select id="f-grade"><option value="">学年すべて</option></select>
+    <span class="hint" id="list-count"></span>
+  </div>
+  <div class="tablebox">
+    <table id="table">
+      <thead><tr>
+        <th data-k="school">高校</th><th data-k="no">背番号</th><th data-k="name">選手</th>
+        <th data-k="pos">守備</th><th data-k="grade">学年</th>
+        <th data-k="mpref">出身県</th><th data-k="ms">出身中学校</th>
+        <th data-k="team">中学の所属チーム</th><th data-k="tpref">チームの県</th>
+      </tr></thead>
+      <tbody id="tbody"></tbody>
+    </table>
+  </div>
+</section>
+
+<footer>
+  <p><b>出典</b>　ベンチ入りメンバー・背番号・守備・出身中学校＝一球速報.com／中学の所属チーム＝高校野球ミュージアム／
+     チームの支部＝公益財団法人 日本少年野球連盟／出身県の照合＝高校野球.online／
+     市区町村と座標＝Wikidata（CC0）／都道府県の形＝Natural Earth（パブリックドメイン）。</p>
+  <p>個人が趣味で作った非公式のページで、日本高等学校野球連盟および各校とは関係ありません。
+     データは<b id="fetched">—</b>時点のもの。外部への通信はありません。</p>
+</footer>
+</div>
+
+<script src="map.js"></script>
+<script src="data.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
