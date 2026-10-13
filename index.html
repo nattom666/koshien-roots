@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>甲子園2026 出身地マップ</title>
-<meta name="description" content="2026年夏の甲子園に出場した49校のベンチ入り980人が、どこの県の出身で、どこの中学野球チームから来たのかを日本地図で見るページ。">
+<title>夏の甲子園出場選手　出身地Map</title>
+<meta name="description" content="2021年から2026年までの夏の甲子園に出場した各校のベンチ入りメンバー5689人が、どこの県の出身で、どこの中学野球チームから来たのかを年ごとに日本地図で見るページ。">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <style>
@@ -42,6 +42,23 @@ h1 small{display:block;font-size:13px;font-weight:400;color:var(--ink-2);letter-
 .counts div{font-size:12px;color:var(--ink-3);letter-spacing:.08em}
 .counts b{display:block;font-size:24px;color:var(--ink);letter-spacing:0;font-variant-numeric:tabular-nums}
 
+/* ── 年を選ぶ帯 ───────────────────────── */
+.years{display:flex;gap:6px;margin-top:18px;flex-wrap:wrap}
+.years button{
+  background:var(--surface);border:1px solid var(--line);border-radius:999px;
+  color:var(--ink-2);font:inherit;font-size:14px;padding:7px 16px;cursor:pointer;
+  font-variant-numeric:tabular-nums;
+}
+.years button:hover{color:var(--ink)}
+.years button[aria-pressed="true"]{
+  background:var(--accent);border-color:var(--accent);color:#fff;font-weight:700;
+}
+.ynote{
+  margin:12px 0 0;color:var(--warm);font-size:12.5px;max-width:760px;
+  border-left:2px solid var(--warm);padding-left:10px;
+}
+.ynote[hidden]{display:none}
+
 /* ── タブ ─────────────────────────────── */
 nav.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:20px;overflow-x:auto}
 nav.tabs button{
@@ -63,6 +80,8 @@ section[hidden]{display:none}
   padding:6px 13px;border-radius:6px;cursor:pointer;
 }
 .seg button[aria-pressed="true"]{background:var(--accent);color:#fff}
+.seg button:disabled{color:var(--ink-3);opacity:.45;cursor:not-allowed}
+.seg button:disabled[aria-pressed="true"]{background:none}
 #player-q{flex:1 1 260px;min-width:200px}
 select,input[type=search]{
   background:var(--surface);color:var(--ink);border:1px solid var(--line);
@@ -155,12 +174,15 @@ footer p{margin:6px 0}
 <body>
 <header>
   <div class="wrap">
-    <h1><small>第108回全国高等学校野球選手権大会 ／ 2026年8月5日〜22日</small>甲子園2026 出身地マップ</h1>
-    <p class="lead">出場49校のベンチ入り980人が、<b>どこの県で生まれ育ち</b>、<b>どこの中学野球チーム</b>から
-      甲子園にたどり着いたのか。県を押すとその県の選手が出て、選手を押すと中学チームから高校までの道のりが地図に流れる。</p>
+    <h1><small id="cup-line">—</small>夏の甲子園出場選手　出身地Map</h1>
+    <p class="lead">2021年から2026年までの夏の甲子園に出場した各校のベンチ入りメンバーが、
+      <b>どこの県の中学校から</b>、<b>どこの中学野球チーム</b>を通って甲子園にたどり着いたのか。
+      県を押すとその県の選手が出て、選手を押すと中学チームから高校までの道のりが地図に流れる。</p>
+    <div class="years" id="years" role="group" aria-label="年を選ぶ"></div>
+    <p class="ynote" id="ynote" hidden></p>
     <div class="counts">
-      <div>出場校<b id="c-school">49</b></div>
-      <div>ベンチ入り<b id="c-player">980</b></div>
+      <div>出場校<b id="c-school">—</b></div>
+      <div>ベンチ入り<b id="c-player">—</b></div>
       <div>中学チーム<b id="c-team">—</b></div>
       <div>中学軟式部から<b id="c-nan">—</b></div>
     </div>
@@ -182,11 +204,11 @@ footer p{margin:6px 0}
       <button aria-pressed="true"  data-v="m">出身県（中学校の所在地）</button>
       <button aria-pressed="false" data-v="t">中学チームの県</button>
     </div>
-    <select id="school-filter"><option value="-1">49校すべて</option></select>
+    <select id="school-filter"></select>
     <input type="search" id="player-q" list="players-dl" placeholder="選手名を入れると道のりが流れる">
     <datalist id="players-dl"></datalist>
     <button id="flow-any" class="ghost">ためしに1人</button>
-    <button id="flow-all" class="ghost" hidden>20人の道のりをまとめて見る</button>
+    <button id="flow-all" class="ghost" hidden>ベンチ入り全員の道のりをまとめて見る</button>
     <button id="flow-clear" class="ghost" hidden>軌跡を消す</button>
     <span class="hint" id="map-hint"></span>
   </div>
@@ -220,7 +242,7 @@ footer p{margin:6px 0}
       <button aria-pressed="false" data-v="pref">チームの県別</button>
     </div>
     <input type="search" id="team-q" placeholder="チーム名で絞る（例：枚方）">
-    <span class="hint">全49校を通した人数。押すとその選手が出ます。</span>
+    <span class="hint" id="team-hint">その年の全校を通した人数。押すとその選手が出ます。</span>
   </div>
   <div class="mapgrid">
     <div class="bars" id="team-bars"></div>
@@ -240,7 +262,7 @@ footer p{margin:6px 0}
       <button aria-pressed="true"  data-v="m">出身県</button>
       <button aria-pressed="false" data-v="t">中学チームの県</button>
     </div>
-    <span class="hint">その高校の20人がどこから来ているか。</span>
+    <span class="hint">その高校のベンチ入りがどこから来ているか。</span>
   </div>
   <div class="mapgrid">
     <div class="bars" id="school-bars"></div>
@@ -276,9 +298,12 @@ footer p{margin:6px 0}
 </section>
 
 <footer>
-  <p><b>出典</b>　ベンチ入りメンバー・背番号・守備・出身中学校＝一球速報.com／中学の所属チーム＝高校野球ミュージアム／
-     チームの支部＝公益財団法人 日本少年野球連盟／出身県の照合＝高校野球.online／
+  <p><b>出典</b>　ベンチ入りメンバー・背番号・守備・学年＝一球速報.com／出身県と出身中学校＝高校野球.online／
+     中学の所属チーム＝高校野球ミュージアム／チームの支部＝公益財団法人 日本少年野球連盟／
+     代表校と高校の所在地＝Wikipedia・Wikidata（CC BY-SA／CC0）／
      市区町村と座標＝Wikidata（CC0）／都道府県の形＝Natural Earth（パブリックドメイン）。</p>
+  <p><b>2020年（第102回）は新型コロナで中止</b>のため入っていません。代わりに行われた
+     2020年甲子園高校野球交流試合（32校）は、使える出どころのどこにも出身中学が載っていません。</p>
   <p>個人が趣味で作った非公式のページで、日本高等学校野球連盟および各校とは関係ありません。
      データは<b id="fetched">—</b>時点のもの。外部への通信はありません。</p>
 </footer>

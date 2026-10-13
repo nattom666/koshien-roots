@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- 1ページだけのサイトマップ。タブは #map / #team / #school / #list で切り替えるだけなので URL は1本。 -->
+<!-- 1ページだけのサイトマップ。タブ（#map / #team / #school / #list）も年（#map/2021）も
+     ハッシュで切り替えるだけなので URL は1本。 -->
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
 <url>
   <loc>https://nattom666.github.io/koshien-roots/</loc>

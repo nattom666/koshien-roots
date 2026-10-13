@@ -1,9 +1,29 @@
-// 甲子園2026 出身地マップ。data.js（選手）と map.js（都道府県の形）を読んで描く。
+// 夏の甲子園出場選手 出身地Map。data.js（選手）と map.js（都道府県の形）を読んで描く。
+// 2021〜2026年の6大会ぶんが1つの data.js に入っている。画面はいつも **1年ぶん** を出す。
 'use strict';
 
 const $  = (s) => document.querySelector(s);
 const el = (tag, cls) => { const n = document.createElement(tag); if (cls) n.className = cls; return n; };
-const P = DATA.players, S = DATA.schools, PREFS = DATA.prefs.map(p => p.name);
+
+/** data.js は鍵の名前を省くため、選手を DATA.cols の並びの配列で持っている。
+ *  繰り返す文字は DATA.tabs の一覧表に逃がして番号になっている。素直な形に戻す。 */
+function unpack(D) {
+  return D.players.map(row => {
+    const o = {};
+    D.cols.forEach((c, i) => {
+      const tab = D.codec[c];
+      o[c] = tab ? D.tabs[tab][row[i]] : row[i];
+    });
+    return o;
+  });
+}
+
+const P = unpack(DATA), S = DATA.schools, PREFS = DATA.prefs.map(p => p.name);
+const CUPS = DATA.cups, YEARS = CUPS.map(c => c.year);
+const CUP = new Map(CUPS.map(c => [c.year, c]));
+// 年ごとに選手と学校を分けておく。描き直すたびに5689人を走らせない。
+const PY = new Map(YEARS.map(y => [y, P.filter(p => p.y === y)]));
+const SY = new Map(YEARS.map(y => [y, S.map((s, i) => i).filter(i => S[i].y === y)]));
 
 /* ── 経緯度 → 画面座標。map.js を作ったときと同じウェブメルカトル ───────── */
 function xy(lat, lon) {
@@ -15,13 +35,18 @@ function xy(lat, lon) {
 const start = (p) => (p.tlat != null ? [p.tlat, p.tlon] : (p.mlat != null ? [p.mlat, p.mlon] : null));
 const goal  = (p) => [S[p.s].lat, S[p.s].lon];
 
-const state = { metric: 'm', school: -1, pref: null, player: null, tab: 'map', k: 1 };
+const state = { year: YEARS[YEARS.length - 1], metric: 'm', school: -1,
+                pref: null, player: null, tab: 'map', k: 1 };
 const RAMP = ['--s1', '--s2', '--s3', '--s4', '--s5', '--s6', '--s7']
   .map(v => getComputedStyle(document.documentElement).getPropertyValue(v).trim());
 const EMPTY = getComputedStyle(document.documentElement).getPropertyValue('--s0').trim();
 
-/* ── 集計 ─────────────────────────────────────────────── */
-const shown = () => state.school < 0 ? P : P.filter(p => p.s === state.school);
+/* ── 集計。いつも選んでいる年の中だけで数える ─────────────── */
+const cup = () => CUP.get(state.year);
+const yearPlayers = () => PY.get(state.year);
+const yearSchools = () => SY.get(state.year);
+const shown = () => state.school < 0
+  ? yearPlayers() : yearPlayers().filter(p => p.s === state.school);
 const prefOf = (p) => state.metric === 'm' ? p.mpref : p.tpref;
 
 function tally(list, key) {
@@ -46,8 +71,8 @@ function steps(max) {
 /* ── 地図 ─────────────────────────────────────────────── */
 const svg = $('#svg');
 const NS = 'http://www.w3.org/2000/svg';
-let flowLayer, zoomG;
-const schoolDots = [];   // 49校の下地。寄せると太るので倍率に合わせて縮める
+let flowLayer, zoomG, marksLayer;
+const schoolDots = [];   // その年の49校の下地。寄せると太るので倍率に合わせて縮める
 
 /** 指定の範囲が画面いっぱいになるまで地図を寄せて、その倍率を返す。
  *  倍率は印の大きさを決めるのにも使う（寄せたぶんだけ印を小さく描く）。 */
@@ -106,20 +131,26 @@ function buildMap() {
     path.addEventListener('pointerleave', hideTip);
     zoomG.appendChild(path);
   }
-  // 49校の位置をうっすら置いておく。どこの高校が出ているかの下地になる。
-  const marks = document.createElementNS(NS, 'g');
-  marks.setAttribute('class', 'node');
-  for (const s of S) {
-    const [x, y] = xy(s.lat, s.lon);
-    const c = document.createElementNS(NS, 'circle');
-    c.setAttribute('cx', x); c.setAttribute('cy', y); c.setAttribute('r', 2.2);
-    c.setAttribute('fill', '#0d1117'); c.setAttribute('opacity', .55);
-    marks.appendChild(c);
-    schoolDots.push(c);
-  }
-  zoomG.appendChild(marks);
+  // その年の49校の位置をうっすら置く。どこの高校が出ているかの下地になる。
+  marksLayer = document.createElementNS(NS, 'g');
+  marksLayer.setAttribute('class', 'node');
+  zoomG.appendChild(marksLayer);
   flowLayer = document.createElementNS(NS, 'g');
   zoomG.appendChild(flowLayer);
+}
+
+/** 学校の下地を今の年のものに置き直す。年で出場校が入れ替わるので毎回やる。 */
+function paintSchoolDots() {
+  marksLayer.innerHTML = '';
+  schoolDots.length = 0;
+  for (const i of yearSchools()) {
+    const [x, y] = xy(S[i].lat, S[i].lon);
+    const c = document.createElementNS(NS, 'circle');
+    c.setAttribute('cx', x); c.setAttribute('cy', y); c.setAttribute('r', 2.2 / state.k);
+    c.setAttribute('fill', '#0d1117'); c.setAttribute('opacity', .55);
+    marksLayer.appendChild(c);
+    schoolDots.push(c);
+  }
 }
 
 let counts = new Map();
@@ -142,7 +173,8 @@ function paintMap() {
   let lo = 1;
   cuts.forEach((c, k) => { add(RAMP[Math.min(6, k)], lo === c ? `${c}` : `${lo}–${c}`); lo = c + 1; });
   const label = state.metric === 'm' ? '出身県' : '中学チームの県';
-  $('#map-hint').textContent = `${label}ごとの人数（${state.school < 0 ? '全49校' : S[state.school].name}／${shown().length}人）`;
+  const who = state.school < 0 ? `${state.year}年の全${yearSchools().length}校` : S[state.school].name;
+  $('#map-hint').textContent = `${label}ごとの人数（${who}／${shown().length}人）`;
 }
 
 function clearFlows() {
@@ -187,8 +219,8 @@ function showRanking() {
   const label = state.metric === 'm' ? '出身県' : '中学チームの県';
   $('#side-title').textContent = `${label}の多い順`;
   $('#side-sub').textContent = state.school < 0
-    ? '全49校・980人の内訳。県を押すとその選手が出ます。'
-    : `${S[state.school].name} の20人の内訳。`;
+    ? `${state.year}年・${yearSchools().length}校${shown().length}人の内訳。県を押すとその選手が出ます。`
+    : `${S[state.school].name} の${shown().length}人の内訳。`;
   const rows = [...counts].sort((a, b) => b[1] - a[1] || PREFS.indexOf(a[0]) - PREFS.indexOf(b[0]));
   const max = rows.length ? rows[0][1] : 1;
   const box = $('#side-list'); box.innerHTML = '';
@@ -322,14 +354,15 @@ function drawFlow(p, i, focus) {
 function drawSchoolFlows(si) {
   flowLayer.innerHTML = '';
   state.player = null;
-  const list = P.filter(p => p.s === si);
+  const list = yearPlayers().filter(p => p.s === si);
   const s = S[si];
   const [gx, gy] = xy(s.lat, s.lon);
   const pts0 = [[gx, gy]];
   for (const p of list) { const f = start(p); if (f) pts0.push(xy(f[0], f[1])); }
   zoomTo(Math.min(...pts0.map(q => q[0])), Math.min(...pts0.map(q => q[1])),
          Math.max(...pts0.map(q => q[0])), Math.max(...pts0.map(q => q[1])), 40);
-  list.forEach((p, i) => drawFlow(p, i, false));
+  let drawn = 0;
+  list.forEach((p, i) => { if (start(p)) drawn++; drawFlow(p, i, false); });
   const c = document.createElementNS(NS, 'circle');
   c.setAttribute('cx', gx); c.setAttribute('cy', gy); c.setAttribute('r', 6 / state.k);
   c.setAttribute('fill', '#cde2fb'); c.setAttribute('stroke', '#0d1117');
@@ -343,8 +376,9 @@ function drawSchoolFlows(si) {
     `<div class="who"><b>${s.name}</b><span class="pill">${s.rep}</span>
        <span style="color:var(--ink-2)">${s.pref}${s.city}</span></div>
      <p style="margin:10px 0 0;color:var(--ink-2);font-size:14px">
-       ベンチ入り20人が中学の所属チームから ${s.name} へ集まってくる道のり。
-       うち <b style="color:var(--ink)">${far}人</b> が ${s.pref} の外の中学校から来ている。</p>`;
+       ${s.y}年のベンチ入り${list.length}人が中学の所属チームから ${s.name} へ集まってくる道のり。
+       うち <b style="color:var(--ink)">${far}人</b> が ${s.pref} の外の中学校から来ている。
+       ${drawn < list.length ? `（道のりを引けるのは${drawn}人。残りは起点が分からない）` : ''}</p>`;
 }
 
 function ensureCard() {
@@ -369,39 +403,58 @@ function showCard(p) {
        <span class="pill">${p.pos}</span>
        <span class="pill">${p.grade}年</span>
        <span class="pill">${p.bt}</span>
-       <span style="color:var(--ink-2)">${S[p.s].name}（${S[p.s].rep}）</span></div>
+       <span style="color:var(--ink-2)">${S[p.s].name}（${S[p.s].rep}・${p.y}年）</span></div>
      <dl class="leg">
        <dt>出身中学校</dt><dd>${p.ms}<span style="color:var(--ink-3)">（${p.mpref}${p.mcity ? '・' + p.mcity : ''}）</span></dd>
-       <dt>中学の所属</dt><dd>${p.team || '不明'}${p.kind && p.kind !== '不明' ? `<span style="color:var(--ink-3)">（${p.kind}）</span>` : ''}</dd>
+       <dt>中学の所属</dt><dd>${p.team || (cup().club ? '不明' : 'この年は出どころが無い')}${p.kind && p.kind !== '不明' ? `<span style="color:var(--ink-3)">（${p.kind}）</span>` : ''}</dd>
        <dt>地図の道のり</dt><dd>${from} <span style="color:var(--ink-3)">→</span> ${S[p.s].pref}・${S[p.s].city}（${S[p.s].name}）</dd>
      </dl>` +
     (p.note ? `<p class="note">※ ${p.note}</p>` : '') +
     (p.tlat == null && p.mlat != null
-      ? `<p class="note">※ 所属チームの所在地が分からないため、出発点は出身中学校に置いています。</p>` : '') +
+      ? `<p class="note">※ ${cup().club ? '所属チームの所在地が分からないため' : `${p.y}年は中学の所属チームが取れる出どころが無いため`}、出発点は出身中学校に置いています。${p.mcity ? '' : '市区町村も分からないので県庁所在地に置いています。'}</p>` : '') +
     (p.mlat == null
       ? `<p class="note">※ 国外の中学校から来た選手なので、地図に道のりを引けません。</p>` : '');
 }
 
 /* ── 中学チームのタブ ─────────────────────────────────── */
 function renderTeams() {
+  const box = $('#team-bars');
+  if (!cup().club) {
+    // 2021・2022年は中学の所属チームが取れる出どころが無い。空の順位を出すより
+    // 理由を書く。
+    box.innerHTML = '';
+    const n = el('div', 'steps');
+    n.innerHTML = `<b>${state.year}年は中学の所属チームが入っていません</b>
+      <span>所属チーム（○○ボーイズ／シニア）を載せているサイトのうち、
+        クローラを拒んでいないのは高校野球ミュージアムだけで、そこの各校ページは
+        2023年ぶんより前に遡れません。</span>
+      <span>出身県と出身中学校は入っているので、<b>地図</b>と<b>一覧</b>は
+        ${state.year}年でも見られます。</span>`;
+    box.appendChild(n);
+    $('#team-title').textContent = '—';
+    $('#team-sub').textContent = '';
+    $('#team-list').innerHTML = '';
+    return;
+  }
   const mode = $('#team-mode').querySelector('[aria-pressed="true"]').dataset.v;
   const q = $('#team-q').value.trim();
+  const YP = yearPlayers();
   const key = { team: p => p.team || '（不明）', kind: p => p.kind, pref: p => p.tpref }[mode];
-  let rows = [...tally(P.filter(p => p.team && p.kind !== '中学軟式野球部'), key)];
-  if (mode !== 'team') rows = [...tally(P, key)];
+  let rows = [...tally(YP.filter(p => p.team && p.kind !== '中学軟式野球部'), key)];
+  if (mode !== 'team') rows = [...tally(YP, key)];
   if (q) rows = rows.filter(([k]) => k.includes(q));
   rows.sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'ja'));
   const max = rows.length ? rows[0][1] : 1;
-  const box = $('#team-bars'); box.innerHTML = '';
+  box.innerHTML = '';
   let first = null;
   for (const [name, n] of rows.slice(0, 120)) {
     const b = el('div', 'bar');
-    const sub = mode === 'team' ? (P.find(p => (p.team || '（不明）') === name) || {}).tpref || '' : '';
+    const sub = mode === 'team' ? (YP.find(p => (p.team || '（不明）') === name) || {}).tpref || '' : '';
     b.innerHTML = `<div class="lb">${name}${sub ? `<small>${sub}</small>` : ''}</div>
                    <div class="tr"><div class="fl" style="width:${n / max * 100}%"></div></div>
                    <div class="vl">${n}</div>`;
     const open = () => {
-      const list = P.filter(p => String(key(p)) === name);
+      const list = YP.filter(p => String(key(p)) === name);
       $('#team-title').textContent = name;
       $('#team-sub').textContent = mode === 'team'
         ? `${list.length}人　${list[0].tpref}${list[0].tcity ? '・' + list[0].tcity : ''}`
@@ -426,7 +479,7 @@ function renderTeams() {
 function renderSchool() {
   const si = +$('#school-pick').value;
   const mode = $('#school-mode').querySelector('[aria-pressed="true"]').dataset.v;
-  const list = P.filter(p => p.s === si);
+  const list = yearPlayers().filter(p => p.s === si);
   const rows = [...tally(list, p => mode === 'm' ? p.mpref : p.tpref)]
     .sort((a, b) => b[1] - a[1] || PREFS.indexOf(a[0]) - PREFS.indexOf(b[0]));
   const max = rows.length ? rows[0][1] : 1;
@@ -456,7 +509,7 @@ function renderList() {
   const q = $('#q').value.trim();
   const fs = $('#f-school').value, fp = $('#f-pref').value;
   const fo = $('#f-pos').value, fg = $('#f-grade').value;
-  let rows = P.filter(p =>
+  let rows = yearPlayers().filter(p =>
     (!fs || String(p.s) === fs) && (!fp || p.mpref === fp) &&
     (!fo || p.pos === fo) && (!fg || String(p.grade) === fg) &&
     (!q || p.name.includes(q) || p.ms.includes(q) || (p.team || '').includes(q) ||
@@ -485,6 +538,66 @@ function renderList() {
   tb.appendChild(frag);
 }
 
+/* ── 年を選ぶ ─────────────────────────────────────────── */
+function renderYears() {
+  const box = $('#years'); box.innerHTML = '';
+  for (const y of YEARS) {
+    const b = el('button');
+    b.type = 'button';
+    b.textContent = `${y}年`;
+    b.setAttribute('aria-pressed', String(y === state.year));
+    b.addEventListener('click', () => selectYear(y));
+    box.appendChild(b);
+  }
+}
+
+/** 年を切り替える。出場校も選手も総入れ替えになるので、選びなおしは全部ほどく。 */
+function selectYear(y) {
+  state.year = y;
+  state.school = -1; state.pref = null; state.player = null;
+  const c = cup();
+  $('#cup-line').textContent = `${c.name} ／ ${c.period}`;
+  $('#ynote').textContent = c.note;
+  $('#ynote').hidden = !c.note;
+  $('#c-school').textContent = c.schools;
+  $('#c-player').textContent = c.players;
+  const YP = yearPlayers();
+  const teams = new Set(YP.filter(p => p.kind !== '中学軟式野球部' && p.team).map(p => p.team));
+  $('#c-team').textContent = c.club ? teams.size : '—';
+  $('#c-nan').textContent = c.club ? YP.filter(p => p.kind === '中学軟式野球部').length + '人' : '—';
+
+  // 中学チームが無い年は「中学チームの県」で塗れない。出身県に戻して押せなくする。
+  for (const b of $('#metric').querySelectorAll('button')) {
+    const off = b.dataset.v === 't' && !c.club;
+    b.disabled = off;
+    b.title = off ? `${y}年は中学の所属チームが入っていません` : '';
+    if (off && state.metric === 't') state.metric = 'm';
+    b.setAttribute('aria-pressed', String(b.dataset.v === state.metric));
+  }
+  for (const b of $('#school-mode').querySelectorAll('button')) {
+    const off = b.dataset.v === 't' && !c.club;
+    b.disabled = off;
+    if (off && b.getAttribute('aria-pressed') === 'true') {
+      b.setAttribute('aria-pressed', 'false');
+      $('#school-mode').querySelector('[data-v="m"]').setAttribute('aria-pressed', 'true');
+    }
+  }
+  $('#team-hint').textContent = `${y}年の全${c.schools}校を通した人数。押すとその選手が出ます。`;
+
+  for (const b of $('#years').querySelectorAll('button'))
+    b.setAttribute('aria-pressed', String(b.textContent === `${y}年`));
+
+  fillSelects();
+  fillPlayerBox();
+  paintSchoolDots();
+  clearFlows();
+  $('#flow-all').hidden = true;
+  paintMap();
+  showRanking();
+  renderTeams(); renderSchool(); renderList();
+  writeHash();
+}
+
 /* ── タブ切り替え ─────────────────────────────────────── */
 function openTab(name) {
   state.tab = name;
@@ -492,7 +605,18 @@ function openTab(name) {
     b.setAttribute('aria-selected', String(b.dataset.tab === name));
   for (const id of ['map', 'team', 'school', 'list'])
     $('#tab-' + id).hidden = id !== name;
-  location.hash = name;
+  writeHash();
+}
+
+/** URL は `#map` と `#map/2024` の両方を読む。年を省いたらいちばん新しい年。 */
+const writeHash = () => {
+  location.hash = state.year === YEARS[YEARS.length - 1]
+    ? state.tab : `${state.tab}/${state.year}`;
+};
+function readHash() {
+  const [tab, y] = location.hash.slice(1).split('/');
+  const year = YEARS.includes(+y) ? +y : YEARS[YEARS.length - 1];
+  return [['map', 'team', 'school', 'list'].includes(tab) ? tab : 'map', year];
 }
 
 /* ── 組み立て ─────────────────────────────────────────── */
@@ -501,37 +625,35 @@ function openTab(name) {
 const byLabel = new Map();
 function fillPlayerBox() {
   const dl = $('#players-dl');
+  dl.innerHTML = '';
+  byLabel.clear();
   const frag = document.createDocumentFragment();
-  for (const p of P) {
+  for (const p of yearPlayers()) {
     const label = `${p.name}（${S[p.s].name}・${p.no}）`;
     byLabel.set(label, p);
     const o = el('option'); o.value = label; frag.appendChild(o);
   }
   dl.appendChild(frag);
-  $('#player-q').addEventListener('input', (e) => {
-    const p = byLabel.get(e.target.value);
-    if (p) { pickPlayer(p); e.target.blur(); }
-  });
-  $('#flow-any').addEventListener('click', () => {
-    const list = shown().filter(p => start(p));
-    const p = list[Math.floor(Math.random() * list.length)];
-    $('#player-q').value = `${p.name}（${S[p.s].name}・${p.no}）`;
-    pickPlayer(p);
-  });
+  $('#player-q').value = '';
 }
 
+/** 絞り込みの選択肢を今の年のものに入れ替える。年で出場校が総入れ替えになる。 */
 function fillSelects() {
-  const opts = S.map((s, i) => `<option value="${i}">${s.name}（${s.rep}）</option>`).join('');
-  $('#school-filter').insertAdjacentHTML('beforeend', opts);
+  const opts = yearSchools()
+    .map(i => `<option value="${i}">${S[i].name}（${S[i].rep}）</option>`).join('');
+  $('#school-filter').innerHTML =
+    `<option value="-1">${state.year}年の${yearSchools().length}校すべて</option>` + opts;
   $('#school-pick').innerHTML = opts;
-  $('#f-school').insertAdjacentHTML('beforeend', opts);
-  $('#f-pref').insertAdjacentHTML('beforeend',
-    [...new Set(P.map(p => p.mpref))].sort((a, b) => PREFS.indexOf(a) - PREFS.indexOf(b))
-      .map(p => `<option>${p}</option>`).join(''));
-  $('#f-pos').insertAdjacentHTML('beforeend',
-    ['投手', '捕手', '内野手', '外野手'].map(p => `<option>${p}</option>`).join(''));
-  $('#f-grade').insertAdjacentHTML('beforeend',
-    [3, 2, 1].map(g => `<option value="${g}">${g}年</option>`).join(''));
+  $('#f-school').innerHTML = '<option value="">高校すべて</option>' + opts;
+  $('#f-pref').innerHTML = '<option value="">出身県すべて</option>' +
+    [...new Set(yearPlayers().map(p => p.mpref))]
+      .sort((a, b) => PREFS.indexOf(a) - PREFS.indexOf(b))
+      .map(p => `<option>${p}</option>`).join('');
+  $('#f-pos').innerHTML = '<option value="">守備すべて</option>' +
+    ['投手', '捕手', '内野手', '外野手'].map(p => `<option>${p}</option>`).join('');
+  $('#f-grade').innerHTML = '<option value="">学年すべて</option>' +
+    [3, 2, 1].map(g => `<option value="${g}">${g}年</option>`).join('');
+  $('#q').value = '';
 }
 
 function seg(id, fn) {
@@ -543,17 +665,24 @@ function seg(id, fn) {
 }
 
 function init() {
-  $('#c-player').textContent = P.length;
-  $('#c-school').textContent = S.length;
-  $('#c-team').textContent = new Set(P.filter(p => p.kind !== '中学軟式野球部' && p.team).map(p => p.team)).size;
-  $('#c-nan').textContent = P.filter(p => p.kind === '中学軟式野球部').length + '人';
   $('#fetched').textContent = DATA.fetched;
+  const [tab, year] = readHash();
+  state.tab = tab; state.year = year;
 
-  fillSelects();
-  fillPlayerBox();
   buildMap();
-  paintMap();
-  showRanking();
+  renderYears();
+
+  $('#player-q').addEventListener('input', (e) => {
+    const p = byLabel.get(e.target.value);
+    if (p) { pickPlayer(p); e.target.blur(); }
+  });
+  $('#flow-any').addEventListener('click', () => {
+    const list = shown().filter(p => start(p));
+    if (!list.length) return;
+    const p = list[Math.floor(Math.random() * list.length)];
+    $('#player-q').value = `${p.name}（${S[p.s].name}・${p.no}）`;
+    pickPlayer(p);
+  });
 
   seg('#metric', (v) => { state.metric = v; state.pref = null; paintMap(); selectPref(null); });
   $('#flow-all').addEventListener('click', () => drawSchoolFlows(state.school));
@@ -577,9 +706,8 @@ function init() {
   for (const b of document.querySelectorAll('nav.tabs button'))
     b.addEventListener('click', () => openTab(b.dataset.tab));
 
-  renderTeams(); renderSchool(); renderList();
-  const h = location.hash.slice(1);
-  openTab(['map', 'team', 'school', 'list'].includes(h) ? h : 'map');
+  selectYear(state.year);   // 選択肢・地図・4つのタブをまとめて組み立てる
+  openTab(state.tab);
 }
 
 init();

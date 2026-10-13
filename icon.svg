@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
-  <!-- 甲子園2026 出身地マップのアイコン。中学のチームから高校へ向かう弧。 -->
+  <!-- 夏の甲子園出場選手 出身地Map のアイコン。中学のチームから高校へ向かう弧。 -->
   <defs>
     <linearGradient id="arc" x1="96" y1="368" x2="416" y2="150" gradientUnits="userSpaceOnUse">
       <stop offset="0" stop-color="#199e70"/>
