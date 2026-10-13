@@ -1,5 +1,6 @@
-// 夏の甲子園出場選手 出身地Map。data.js（選手）と map.js（都道府県の形）を読んで描く。
-// 2021〜2026年の6大会ぶんが1つの data.js に入っている。画面はいつも **1年ぶん** を出す。
+// 甲子園出場選手 出身地Map。data.js（選手）と map.js（都道府県の形）を読んで描く。
+// 2021〜2026年の春夏12大会ぶんが1つの data.js に入っている。
+// 画面はいつも **1大会ぶん**（年と春夏の組み合わせ1つ）を出す。
 'use strict';
 
 const $  = (s) => document.querySelector(s);
@@ -19,11 +20,13 @@ function unpack(D) {
 }
 
 const P = unpack(DATA), S = DATA.schools, PREFS = DATA.prefs.map(p => p.name);
-const CUPS = DATA.cups, YEARS = CUPS.map(c => c.year);
-const CUP = new Map(CUPS.map(c => [c.year, c]));
-// 年ごとに選手と学校を分けておく。描き直すたびに5689人を走らせない。
-const PY = new Map(YEARS.map(y => [y, P.filter(p => p.y === y)]));
-const SY = new Map(YEARS.map(y => [y, S.map((s, i) => i).filter(i => S[i].y === y)]));
+const CUPS = DATA.cups;
+const YEARS = [...new Set(CUPS.map(c => c.year))];
+const SEASONS = [...new Set(CUPS.map(c => c.season))];
+// 大会ごとに選手と学校を分けておく。描き直すたびに1万人を走らせない。
+const PC = CUPS.map((c, i) => P.filter(p => p.c === i));
+const SC = CUPS.map((c, i) => S.map((s, j) => j).filter(j => S[j].c === i));
+const cupIndex = (year, season) => CUPS.findIndex(c => c.year === year && c.season === season);
 
 /* ── 経緯度 → 画面座標。map.js を作ったときと同じウェブメルカトル ───────── */
 function xy(lat, lon) {
@@ -35,16 +38,17 @@ function xy(lat, lon) {
 const start = (p) => (p.tlat != null ? [p.tlat, p.tlon] : (p.mlat != null ? [p.mlat, p.mlon] : null));
 const goal  = (p) => [S[p.s].lat, S[p.s].lon];
 
-const state = { year: YEARS[YEARS.length - 1], metric: 'm', school: -1,
+const state = { cup: CUPS.length - 1, metric: 'm', school: -1,
                 pref: null, player: null, tab: 'map', k: 1 };
 const RAMP = ['--s1', '--s2', '--s3', '--s4', '--s5', '--s6', '--s7']
   .map(v => getComputedStyle(document.documentElement).getPropertyValue(v).trim());
 const EMPTY = getComputedStyle(document.documentElement).getPropertyValue('--s0').trim();
 
-/* ── 集計。いつも選んでいる年の中だけで数える ─────────────── */
-const cup = () => CUP.get(state.year);
-const yearPlayers = () => PY.get(state.year);
-const yearSchools = () => SY.get(state.year);
+/* ── 集計。いつも選んでいる大会の中だけで数える ───────────── */
+const cup = () => CUPS[state.cup];
+const yearPlayers = () => PC[state.cup];
+const yearSchools = () => SC[state.cup];
+const cupLabel = () => `${cup().year}年${cup().season}`;
 const shown = () => state.school < 0
   ? yearPlayers() : yearPlayers().filter(p => p.s === state.school);
 const prefOf = (p) => state.metric === 'm' ? p.mpref : p.tpref;
@@ -173,7 +177,7 @@ function paintMap() {
   let lo = 1;
   cuts.forEach((c, k) => { add(RAMP[Math.min(6, k)], lo === c ? `${c}` : `${lo}–${c}`); lo = c + 1; });
   const label = state.metric === 'm' ? '出身県' : '中学チームの県';
-  const who = state.school < 0 ? `${state.year}年の全${yearSchools().length}校` : S[state.school].name;
+  const who = state.school < 0 ? `${cupLabel()}の全${yearSchools().length}校` : S[state.school].name;
   $('#map-hint').textContent = `${label}ごとの人数（${who}／${shown().length}人）`;
 }
 
@@ -219,7 +223,7 @@ function showRanking() {
   const label = state.metric === 'm' ? '出身県' : '中学チームの県';
   $('#side-title').textContent = `${label}の多い順`;
   $('#side-sub').textContent = state.school < 0
-    ? `${state.year}年・${yearSchools().length}校${shown().length}人の内訳。県を押すとその選手が出ます。`
+    ? `${cupLabel()}・${yearSchools().length}校${shown().length}人の内訳。県を押すとその選手が出ます。`
     : `${S[state.school].name} の${shown().length}人の内訳。`;
   const rows = [...counts].sort((a, b) => b[1] - a[1] || PREFS.indexOf(a[0]) - PREFS.indexOf(b[0]));
   const max = rows.length ? rows[0][1] : 1;
@@ -424,12 +428,12 @@ function renderTeams() {
     // 理由を書く。
     box.innerHTML = '';
     const n = el('div', 'steps');
-    n.innerHTML = `<b>${state.year}年は中学の所属チームが入っていません</b>
+    n.innerHTML = `<b>${cupLabel()}は中学の所属チームが入っていません</b>
       <span>所属チーム（○○ボーイズ／シニア）を載せているサイトのうち、
         クローラを拒んでいないのは高校野球ミュージアムだけで、そこの各校ページは
         2023年ぶんより前に遡れません。</span>
       <span>出身県と出身中学校は入っているので、<b>地図</b>と<b>一覧</b>は
-        ${state.year}年でも見られます。</span>`;
+        ${cupLabel()}でも見られます。</span>`;
     box.appendChild(n);
     $('#team-title').textContent = '—';
     $('#team-sub').textContent = '';
@@ -538,22 +542,29 @@ function renderList() {
   tb.appendChild(frag);
 }
 
-/* ── 年を選ぶ ─────────────────────────────────────────── */
-function renderYears() {
-  const box = $('#years'); box.innerHTML = '';
+/* ── 大会（年と春夏）を選ぶ ───────────────────────────── */
+function renderCupPicker() {
+  const ys = $('#years'); ys.innerHTML = '';
   for (const y of YEARS) {
     const b = el('button');
-    b.type = 'button';
-    b.textContent = `${y}年`;
-    b.setAttribute('aria-pressed', String(y === state.year));
-    b.addEventListener('click', () => selectYear(y));
-    box.appendChild(b);
+    b.type = 'button'; b.textContent = `${y}年`; b.dataset.y = y;
+    b.addEventListener('click', () => selectCup(cupIndex(y, cup().season)));
+    ys.appendChild(b);
+  }
+  const ss = $('#seasons'); ss.innerHTML = '';
+  for (const se of SEASONS) {
+    const b = el('button');
+    b.type = 'button'; b.textContent = se === '春' ? '春（センバツ）' : '夏（選手権）';
+    b.dataset.s = se;
+    b.addEventListener('click', () => selectCup(cupIndex(cup().year, se)));
+    ss.appendChild(b);
   }
 }
 
-/** 年を切り替える。出場校も選手も総入れ替えになるので、選びなおしは全部ほどく。 */
-function selectYear(y) {
-  state.year = y;
+/** 大会を切り替える。出場校も選手も総入れ替えになるので、選びなおしは全部ほどく。 */
+function selectCup(ci) {
+  if (ci < 0) return;
+  state.cup = ci;
   state.school = -1; state.pref = null; state.player = null;
   const c = cup();
   $('#cup-line').textContent = `${c.name} ／ ${c.period}`;
@@ -566,11 +577,11 @@ function selectYear(y) {
   $('#c-team').textContent = c.club ? teams.size : '—';
   $('#c-nan').textContent = c.club ? YP.filter(p => p.kind === '中学軟式野球部').length + '人' : '—';
 
-  // 中学チームが無い年は「中学チームの県」で塗れない。出身県に戻して押せなくする。
+  // 中学チームが無い大会は「中学チームの県」で塗れない。出身県に戻して押せなくする。
   for (const b of $('#metric').querySelectorAll('button')) {
     const off = b.dataset.v === 't' && !c.club;
     b.disabled = off;
-    b.title = off ? `${y}年は中学の所属チームが入っていません` : '';
+    b.title = off ? `${cupLabel()}は中学の所属チームが入っていません` : '';
     if (off && state.metric === 't') state.metric = 'm';
     b.setAttribute('aria-pressed', String(b.dataset.v === state.metric));
   }
@@ -582,10 +593,12 @@ function selectYear(y) {
       $('#school-mode').querySelector('[data-v="m"]').setAttribute('aria-pressed', 'true');
     }
   }
-  $('#team-hint').textContent = `${y}年の全${c.schools}校を通した人数。押すとその選手が出ます。`;
+  $('#team-hint').textContent = `${cupLabel()}の全${c.schools}校を通した人数。押すとその選手が出ます。`;
 
   for (const b of $('#years').querySelectorAll('button'))
-    b.setAttribute('aria-pressed', String(b.textContent === `${y}年`));
+    b.setAttribute('aria-pressed', String(+b.dataset.y === c.year));
+  for (const b of $('#seasons').querySelectorAll('button'))
+    b.setAttribute('aria-pressed', String(b.dataset.s === c.season));
 
   fillSelects();
   fillPlayerBox();
@@ -608,15 +621,26 @@ function openTab(name) {
   writeHash();
 }
 
-/** URL は `#map` と `#map/2024` の両方を読む。年を省いたらいちばん新しい年。 */
+/** URL は `#map`・`#map/2024`・`#map/2024春` を読む。
+ *  省いたらいちばん新しい大会（2026年夏）。 */
 const writeHash = () => {
-  location.hash = state.year === YEARS[YEARS.length - 1]
-    ? state.tab : `${state.tab}/${state.year}`;
+  const c = cup();
+  location.hash = state.cup === CUPS.length - 1
+    ? state.tab : `${state.tab}/${c.year}${c.season}`;
 };
 function readHash() {
-  const [tab, y] = location.hash.slice(1).split('/');
-  const year = YEARS.includes(+y) ? +y : YEARS[YEARS.length - 1];
-  return [['map', 'team', 'school', 'list'].includes(tab) ? tab : 'map', year];
+  // ブラウザは `#map/2021春` を `%E6%98%A5` に直して持つので、読むときに戻す。
+  let raw = location.hash.slice(1);
+  try { raw = decodeURIComponent(raw); } catch (e) { /* 壊れていたらそのまま */ }
+  const [tab, rest] = raw.split('/');
+  const m = /^(\d{4})(春|夏|haru|natsu)?$/.exec(rest || '');
+  let ci = CUPS.length - 1;
+  if (m) {
+    const season = { haru: '春', natsu: '夏' }[m[2]] || m[2] || '夏';
+    const got = cupIndex(+m[1], season);
+    if (got >= 0) ci = got;
+  }
+  return [['map', 'team', 'school', 'list'].includes(tab) ? tab : 'map', ci];
 }
 
 /* ── 組み立て ─────────────────────────────────────────── */
@@ -642,7 +666,7 @@ function fillSelects() {
   const opts = yearSchools()
     .map(i => `<option value="${i}">${S[i].name}（${S[i].rep}）</option>`).join('');
   $('#school-filter').innerHTML =
-    `<option value="-1">${state.year}年の${yearSchools().length}校すべて</option>` + opts;
+    `<option value="-1">${cupLabel()}の${yearSchools().length}校すべて</option>` + opts;
   $('#school-pick').innerHTML = opts;
   $('#f-school').innerHTML = '<option value="">高校すべて</option>' + opts;
   $('#f-pref').innerHTML = '<option value="">出身県すべて</option>' +
@@ -666,11 +690,11 @@ function seg(id, fn) {
 
 function init() {
   $('#fetched').textContent = DATA.fetched;
-  const [tab, year] = readHash();
-  state.tab = tab; state.year = year;
+  const [tab, ci] = readHash();
+  state.tab = tab; state.cup = ci;
 
   buildMap();
-  renderYears();
+  renderCupPicker();
 
   $('#player-q').addEventListener('input', (e) => {
     const p = byLabel.get(e.target.value);
@@ -706,7 +730,7 @@ function init() {
   for (const b of document.querySelectorAll('nav.tabs button'))
     b.addEventListener('click', () => openTab(b.dataset.tab));
 
-  selectYear(state.year);   // 選択肢・地図・4つのタブをまとめて組み立てる
+  selectCup(state.cup);   // 選択肢・地図・4つのタブをまとめて組み立てる
   openTab(state.tab);
 }
 
