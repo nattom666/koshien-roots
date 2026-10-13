@@ -380,7 +380,7 @@ function drawSchoolFlows(si) {
     `<div class="who"><b>${s.name}</b><span class="pill">${s.rep}</span>
        <span style="color:var(--ink-2)">${s.pref}${s.city}</span></div>
      <p style="margin:10px 0 0;color:var(--ink-2);font-size:14px">
-       ${s.y}年のベンチ入り${list.length}人が中学の所属チームから ${s.name} へ集まってくる道のり。
+       ${cupLabel()}のベンチ入り${list.length}人が中学の所属チームから ${s.name} へ集まってくる道のり。
        うち <b style="color:var(--ink)">${far}人</b> が ${s.pref} の外の中学校から来ている。
        ${drawn < list.length ? `（道のりを引けるのは${drawn}人。残りは起点が分からない）` : ''}</p>`;
 }
@@ -407,7 +407,7 @@ function showCard(p) {
        ${p.pos ? `<span class="pill">${p.pos}</span>` : ''}
        <span class="pill">${p.grade}年</span>
        ${p.bt ? `<span class="pill">${p.bt}</span>` : ''}
-       <span style="color:var(--ink-2)">${S[p.s].name}（${S[p.s].rep}・${p.y}年）</span></div>
+       <span style="color:var(--ink-2)">${S[p.s].name}（${S[p.s].rep}・${cupLabel()}）</span></div>
      <dl class="leg">
        <dt>出身中学校</dt><dd>${p.ms}<span style="color:var(--ink-3)">（${p.mpref}${p.mcity ? '・' + p.mcity : ''}）</span></dd>
        <dt>中学の所属</dt><dd>${p.team || (cup().club ? '不明' : 'この年は出どころが無い')}${p.kind && p.kind !== '不明' ? `<span style="color:var(--ink-3)">（${p.kind}）</span>` : ''}</dd>
@@ -415,7 +415,7 @@ function showCard(p) {
      </dl>` +
     (p.note ? `<p class="note">※ ${p.note}</p>` : '') +
     (p.tlat == null && p.mlat != null
-      ? `<p class="note">※ ${cup().club ? '所属チームの所在地が分からないため' : `${p.y}年は中学の所属チームが取れる出どころが無いため`}、出発点は出身中学校に置いています。${p.mcity ? '' : '市区町村も分からないので県庁所在地に置いています。'}</p>` : '') +
+      ? `<p class="note">※ ${cup().club ? '所属チームの所在地が分からないため' : `${cupLabel()}は中学の所属チームが取れる出どころが無いため`}、出発点は出身中学校に置いています。${p.mcity ? '' : '市区町村も分からないので県庁所在地に置いています。'}</p>` : '') +
     (p.mlat == null
       ? `<p class="note">※ 国外の中学校から来た選手なので、地図に道のりを引けません。</p>` : '');
 }
