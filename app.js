@@ -244,7 +244,7 @@ function renderPlayers(box, list, withSchool) {
     const row = el('div', 'prow');
     row.innerHTML =
       `<span class="n">${p.no}</span>` +
-      `<span>${p.name} <em>${p.pos}・${p.grade}年</em><br>` +
+      `<span>${p.name} <em>${p.pos ? p.pos + '・' : ''}${p.grade}年</em><br>` +
       `<span class="m">${withSchool ? S[p.s].name + '／' : ''}${p.team || '所属チーム不明'}</span></span>` +
       `<span class="m">${p.mcity || p.mpref}</span>`;
     row.addEventListener('click', () => { pickPlayer(p); highlight(box, row); });
@@ -400,9 +400,9 @@ function showCard(p) {
   card.innerHTML =
     `<div class="who"><b>${p.name}</b>
        <span class="pill">背番号 ${p.no}</span>
-       <span class="pill">${p.pos}</span>
+       ${p.pos ? `<span class="pill">${p.pos}</span>` : ''}
        <span class="pill">${p.grade}年</span>
-       <span class="pill">${p.bt}</span>
+       ${p.bt ? `<span class="pill">${p.bt}</span>` : ''}
        <span style="color:var(--ink-2)">${S[p.s].name}（${S[p.s].rep}・${p.y}年）</span></div>
      <dl class="leg">
        <dt>出身中学校</dt><dd>${p.ms}<span style="color:var(--ink-3)">（${p.mpref}${p.mcity ? '・' + p.mcity : ''}）</span></dd>
@@ -530,7 +530,7 @@ function renderList() {
     const tr = el('tr');
     tr.innerHTML =
       `<td>${S[p.s].name}</td><td class="num">${p.no}</td><td>${p.name}</td>` +
-      `<td>${p.pos}</td><td class="num">${p.grade}</td><td>${p.mpref}</td>` +
+      `<td>${p.pos || '—'}</td><td class="num">${p.grade}</td><td>${p.mpref}</td>` +
       `<td>${p.ms}</td><td>${p.team || '—'}</td><td>${p.tpref}</td>`;
     tr.addEventListener('click', () => { openTab('map'); pickPlayer(p); });
     frag.appendChild(tr);
